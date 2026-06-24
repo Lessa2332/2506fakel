@@ -579,26 +579,27 @@
         } catch (e) { console.error(e); }
       }
 
-      updatePosition() {
+updatePosition() {
         if (!state.landmarks) return;
-        const points = [0, 5, 9, 13, 17];
-        let cx = 0, cy = 0;
-        for (const idx of points) {
-          cx += state.landmarks[idx].x;
-          cy += state.landmarks[idx].y;
-        }
-        cx /= points.length;
-        cy /= points.length;
         
-        const x = (cx - 0.5) * 8;
-        const y = (0.5 - cy) * 6;
+        // Беремо координати саме кінчика середнього пальця (індекс 12)
+        const tip = state.landmarks[12]; 
+        
+        // Конвертуємо координати MediaPipe (0-1) у простір Three.js
+        const x = (tip.x - 0.5) * 8;
+        const y = (0.5 - tip.y) * 6;
+        
+        // Зміщуємо факел трохи нижче, щоб кінчик полум'я був на пальці
+        // Налаштуйте Y_OFFSET (наприклад, -0.2 або -0.3), якщо потрібно точніше
+        const Y_OFFSET = -0.3; 
         
         if (torchSprite) {
-          torchSprite.position.set(x, y - 0.5, 0);
+          torchSprite.position.set(x, y + Y_OFFSET, 0);
           torchSprite.lookAt(camera.position);
         }
         if (candle) {
-          candle.position.set(x, (y - 0.5) + CONFIG.FLAME_Y_OFFSET, 0.05);
+          // Полум'я ставимо рівно на кінчик пальця
+          candle.position.set(x, y + Y_OFFSET + CONFIG.FLAME_Y_OFFSET, 0.05);
           candle.lookAt(camera.position);
         }
       }
