@@ -370,7 +370,7 @@
           // Спроба завантажити зовнішнє зображення (якщо є)
           const loader = new THREE.TextureLoader();
           loader.load(
-            'torch.png', // якщо є таке фото – використати
+            'foto15.png', // якщо є таке фото – використати
             (texture) => {
               const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
               torchSprite = new THREE.Sprite(mat);
