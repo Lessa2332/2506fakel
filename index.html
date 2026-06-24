@@ -199,17 +199,7 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    @keyframes flameFlicker {
-      0%, 100% { transform: scale(1) translateY(0); opacity: 0.95; }
-      33% { transform: scale(1.1) translateY(-2px); opacity: 1; }
-      66% { transform: scale(0.95) translateY(2px); opacity: 0.9; }
-    }
-    @keyframes glowPulse {
-      0%, 100% { box-shadow: 0 0 30px rgba(255, 69, 0, 0.7); }
-      50% { box-shadow: 0 0 60px rgba(255, 69, 0, 1); }
-    }
 
-    /* Адаптивність для маленьких екранів */
     @media (max-width: 480px) {
       #wishText { bottom: 20px; padding: 12px 16px; }
       #handIndicator { top: 10px; padding: 8px 16px; }
@@ -252,31 +242,31 @@
     const CONFIG = {
       SMOOTHING_FACTOR: 0.6,
       HAND_NOT_DETECTED_THRESHOLD: 30,
-      // Пороги для детекції сильного подиху
       AMPLITUDE_THRESHOLD: 2.5,
       LOW_FREQ_RATIO: 0.45,
       VOLUME_THRESHOLD: 0.08,
       EXTREME_VOLUME_THRESHOLD: 0.15,
       FREQUENCY_MAX: 250,
-      // Час для запалення
-      BLOW_TIME_FIRST_MSG: 3,    // 3 секунди – "Дмухай сильніше"
-      BLOW_TIME_IGNITE: 8,       // 8 секунд – запалення
-      DEBUG_MODE: false
+      BLOW_TIME_FIRST_MSG: 3,    
+      BLOW_TIME_IGNITE: 8,       
+      DEBUG_MODE: false,
+      
+      // КЛЮЧОВЕ ВИПРАВЛЕННЯ ДЛЯ ЗОБРАЖЕННЯ foto15.png:
+      // Оскільки чаша факела на картинці зміщена вгору, полум'я має бути вище від центру долоні.
+      // Якщо полум'я занадто високо або низько — підкоригуйте це значення (наприклад, 0.4, 0.6 або 0.1)
+      FLAME_Y_OFFSET: 0.35 
     };
 
-    // Стан додатку
     const state = {
       landmarks: null,
       isHandVisible: false,
       handFrames: 0,
-      isFlameLit: false,          // спочатку не горить
+      isFlameLit: false,          
       isMicActive: false,
       audioContext: null,
       analyser: null,
       animationId: null,
       time: 0,
-
-      // Для відліку подиху
       isBlowing: false,
       blowStartTime: null,
       blowDuration: 0,
@@ -284,7 +274,6 @@
       torchLit: false
     };
 
-    // DOM
     const el = {
       video: document.getElementById('video'),
       canvas: document.getElementById('canvas'),
@@ -299,12 +288,10 @@
       progressLabel: document.getElementById('progressLabel')
     };
 
-    // Three.js змінні
     let scene, camera, renderer;
     let torchSprite, candle, flameGroup;
     let handLandmarker;
 
-    // ---------- ОСНОВНИЙ КЛАС ----------
     class TorchARApp {
       constructor() {
         this.init();
@@ -324,7 +311,6 @@
         }
       }
 
-      // ---------- КАМЕРА ----------
       async setupCamera() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -335,7 +321,6 @@
         });
       }
 
-      // ---------- THREE.JS ----------
       async initThreeJS() {
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x1a0a2e, 5, 15);
@@ -347,30 +332,24 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // Світло
         const ambient = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambient);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
         dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
 
-        // Завантажуємо / малюємо факел
         await this.createTorchSprite();
-
-        // Створюємо свічку (полум'я)
         this.createBeautifulCandle();
 
-        // Початково ховаємо полум'я
         candle.visible = false;
         flameGroup.visible = false;
       }
 
       createTorchSprite() {
         return new Promise((resolve) => {
-          // Спроба завантажити зовнішнє зображення (якщо є)
           const loader = new THREE.TextureLoader();
           loader.load(
-            'foto15.png', // якщо є таке фото – використати
+            'foto15.png', 
             (texture) => {
               const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
               torchSprite = new THREE.Sprite(mat);
@@ -381,7 +360,6 @@
             },
             undefined,
             () => {
-              // Якщо немає – малюємо факел на canvas
               console.warn('Фото факела не знайдено, малюємо вбудований факел');
               this.createFallbackTorch();
               resolve();
@@ -396,40 +374,18 @@
         canvas.height = 512;
         const ctx = canvas.getContext('2d');
 
-        // Ручка (дерев'яна)
         ctx.fillStyle = '#8B5A2B';
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 15;
         ctx.fillRect(220, 280, 72, 200);
         ctx.shadowBlur = 0;
 
-        // Верхівка (металева чашка)
         ctx.fillStyle = '#555';
         ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.ellipse(256, 280, 60, 25, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-
-        // Полум'я (поки що темне – буде запалюватись окремо)
-        ctx.fillStyle = '#2a1a0a';
-        ctx.beginPath();
-        ctx.ellipse(256, 240, 40, 50, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Контур полум'я
-        ctx.strokeStyle = '#ff8800';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.ellipse(256, 240, 42, 52, 0, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Напис "ФАКЕЛ"
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 36px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('🔥', 256, 480);
 
         const texture = new THREE.CanvasTexture(canvas);
         const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
@@ -444,32 +400,16 @@
         candle.visible = false;
         scene.add(candle);
 
-        // Тіло свічки (символічне, буде заховано під факелом)
-        const bodyGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.6, 16);
-        const bodyMat = new THREE.MeshPhongMaterial({ color: 0xF5F5DC, shininess: 80 });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = 0.2;
-        candle.add(body);
-
-        // Гніт
-        const wickGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.03, 8);
-        const wickMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
-        const wick = new THREE.Mesh(wickGeo, wickMat);
-        wick.position.y = 0.42;
-        candle.add(wick);
-
-        // Полум'я (група)
         this.createNaturalFlame();
 
-        // Світло від полум'я
-        const light = new THREE.PointLight(0xFFA500, 1.2, 2.5);
-        light.position.set(0, 0.48, 0);
+        const light = new THREE.PointLight(0xFFA500, 1.5, 3.5);
+        light.position.set(0, 0, 0);
         candle.add(light);
       }
 
       createNaturalFlame() {
         flameGroup = new THREE.Group();
-        flameGroup.position.y = 0.46;
+        flameGroup.position.y = 0; 
         flameGroup.visible = false;
         candle.add(flameGroup);
 
@@ -480,9 +420,8 @@
 
         const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false, curveSegments: 24 });
         geo.rotateX(Math.PI / 2);
-        geo.translate(0, 0.2, 0);
+        geo.translate(0, 0.1, 0);
 
-        // Шари полум'я
         const colors = [0xFFFF00, 0xFF8800, 0xFF3300];
         const emissive = [0xFFAA00, 0xFF6600, 0xFF2200];
         const opacities = [0.95, 0.7, 0.5];
@@ -501,16 +440,8 @@
           mesh.scale.set(scales[i], 1 + i * 0.1, 1);
           flameGroup.add(mesh);
         }
-
-        // Дим
-        const smokeGeo = new THREE.SphereGeometry(0.06, 8, 8);
-        const smokeMat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.15 });
-        const smoke = new THREE.Mesh(smokeGeo, smokeMat);
-        smoke.position.y = 0.25;
-        flameGroup.add(smoke);
       }
 
-      // ---------- HAND TRACKING ----------
       async initHandTracking() {
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
@@ -525,12 +456,11 @@
         });
       }
 
-      // ---------- ПОДІЇ ----------
       setupEventListeners() {
         el.micBtn.addEventListener('click', () => this.toggleMicrophone());
         window.addEventListener('resize', () => this.onWindowResize());
         document.addEventListener('keydown', (e) => {
-          if (e.key === 'd') {
+          if (e.key === 'd' || e.key === 'D') {
             CONFIG.DEBUG_MODE = !CONFIG.DEBUG_MODE;
             el.debugPanel.style.display = CONFIG.DEBUG_MODE ? 'block' : 'none';
           }
@@ -559,13 +489,11 @@
           state.analyser = state.audioContext.createAnalyser();
           state.analyser.fftSize = 512;
           state.analyser.smoothingTimeConstant = 0.3;
-          state.analyser.minDecibels = -90;
-          state.analyser.maxDecibels = -10;
           source.connect(state.analyser);
           state.isMicActive = true;
         } catch (e) {
           console.error('Мікрофон не доступний', e);
-          alert('Дозвольте доступ до мікрофона, щоб запалити факел! 🎤');
+          alert('Дозвольте доступ до мікрофона! 🎤');
         }
       }
 
@@ -577,7 +505,6 @@
         el.progressLabel.style.display = 'none';
       }
 
-      // ---------- ОСНОВНИЙ ЦИКЛ ----------
       startAnimation() {
         const animate = () => {
           state.time += 0.016;
@@ -596,12 +523,11 @@
 
           if (!torchSprite.visible) {
             torchSprite.visible = true;
-            candle.visible = state.isFlameLit; // запалено – показуємо полум'я
+            candle.visible = state.isFlameLit; 
             flameGroup.visible = state.isFlameLit;
             el.wishText.style.display = 'block';
             el.flameStatus.style.display = 'block';
             el.handIndicator.style.display = 'none';
-            // Показуємо прогрес-бар, якщо мікрофон активний
             if (state.isMicActive && !state.isFlameLit) {
               el.progressContainer.style.display = 'block';
               el.progressLabel.style.display = 'block';
@@ -622,27 +548,22 @@
           }
         }
 
-        // Анімація полум'я (якщо горить)
         if (state.isFlameLit && flameGroup && flameGroup.visible) {
           this.animateFlame();
         }
 
-        // Перевірка подиху (тільки якщо факел не горить і мікрофон активний)
         if (!state.isFlameLit && state.isMicActive && state.analyser) {
           this.checkBlowForIgnite();
         } else if (state.isFlameLit) {
-          // Якщо факел горить – ховаємо прогрес
           el.progressContainer.style.display = 'none';
           el.progressLabel.style.display = 'none';
         }
 
-        // Оновлення відладочної панелі
         if (CONFIG.DEBUG_MODE) {
           this.updateDebugPanel();
         }
       }
 
-      // ---------- ДЕТЕКЦІЯ РУКИ ----------
       detectHand() {
         if (!handLandmarker || el.video.readyState < 2) return;
         try {
@@ -669,14 +590,18 @@
         }
         cx /= points.length;
         cy /= points.length;
+        
         const x = (cx - 0.5) * 8;
         const y = (0.5 - cy) * 6;
+        
         if (torchSprite) {
+          // Текстура факела слідує за рукою
           torchSprite.position.set(x, y - 0.5, 0);
           torchSprite.lookAt(camera.position);
         }
         if (candle) {
-          candle.position.set(x, y - 0.2, 0);
+          // Полум'я піднімається вище на CONFIG.FLAME_Y_OFFSET, щоб сісти точно на верх чаші
+          candle.position.set(x, (y - 0.5) + CONFIG.FLAME_Y_OFFSET, 0.05);
           candle.lookAt(camera.position);
         }
       }
@@ -697,14 +622,8 @@
           }
         });
         flameGroup.rotation.z = rotZ;
-        // Колір
-        if (flameGroup.children[0]) {
-          const hue = 0.15 + Math.sin(t * 3) * 0.1;
-          flameGroup.children[0].material.color.setHSL(hue, 1, 0.6);
-        }
       }
 
-      // ---------- НОВА ЛОГІКА: ЗАПАЛЕННЯ ФАКЕЛА ----------
       checkBlowForIgnite() {
         if (!state.analyser || state.isFlameLit) return;
 
@@ -720,89 +639,48 @@
         state.analyser.getByteFrequencyData(freqData);
         let sumFreq = 0;
         for (let i = 0; i < freqData.length; i++) sumFreq += freqData[i];
-        const avgFreq = sumFreq / freqData.length;
-        const volume = avgFreq / 255;
+        const volume = sumFreq / (freqData.length * 255);
 
-        // Частка низьких частот
         const lowCount = Math.floor(freqData.length * 0.2);
         let lowSum = 0;
         for (let i = 0; i < lowCount; i++) lowSum += freqData[i];
         const lowRatio = sumFreq > 0 ? lowSum / sumFreq : 0;
 
-        // Домінантна частота
-        let maxVal = 0, maxIdx = 0;
-        for (let i = 0; i < freqData.length; i++) {
-          if (freqData[i] > maxVal) { maxVal = freqData[i]; maxIdx = i; }
-        }
-        const domFreq = maxIdx * (state.audioContext.sampleRate / 2) / freqData.length;
-
-        // Критерії сильного подиху
-        const isStrongBlow = amplitude > CONFIG.AMPLITUDE_THRESHOLD &&
-                             lowRatio > CONFIG.LOW_FREQ_RATIO &&
-                             volume > CONFIG.VOLUME_THRESHOLD;
-
-        const isExtremeBlow = volume > CONFIG.EXTREME_VOLUME_THRESHOLD &&
-                              (domFreq < CONFIG.FREQUENCY_MAX || lowRatio > 0.8);
-
-        const blowDetected = isStrongBlow || isExtremeBlow;
-
-        // Відладка
-        if (CONFIG.DEBUG_MODE) {
-          console.log(`💨 amp=${amplitude.toFixed(2)} low=${(lowRatio*100).toFixed(0)}% vol=${(volume*100).toFixed(0)}% freq=${domFreq.toFixed(0)}Hz → ${blowDetected ? 'ПОДИХ' : 'тиша'}`);
-        }
-
+        const blowDetected = amplitude > CONFIG.AMPLITUDE_THRESHOLD && lowRatio > CONFIG.LOW_FREQ_RATIO && volume > CONFIG.VOLUME_THRESHOLD;
         const now = Date.now();
 
         if (blowDetected) {
           if (!state.isBlowing) {
-            // Початок подиху
             state.isBlowing = true;
             state.blowStartTime = now;
             state.blowDuration = 0;
             state.msg3sShown = false;
-            // Показуємо прогрес
-            el.progressContainer.style.display = 'block';
-            el.progressLabel.style.display = 'block';
           } else {
-            // Оновлюємо тривалість
             state.blowDuration = (now - state.blowStartTime) / 1000;
-            // Оновлюємо прогрес-бар
             const progress = Math.min(state.blowDuration / CONFIG.BLOW_TIME_IGNITE, 1);
             el.progressFill.style.width = (progress * 100) + '%';
             el.progressLabel.textContent = `⏳ ${Math.min(Math.floor(state.blowDuration), CONFIG.BLOW_TIME_IGNITE)} с`;
 
-            // Перевірка на 3 секунди
             if (state.blowDuration >= CONFIG.BLOW_TIME_FIRST_MSG && !state.msg3sShown) {
               state.msg3sShown = true;
               el.wishText.textContent = '💨 Дмухай сильніше!';
               el.wishText.style.color = '#FF4500';
               el.wishText.style.borderColor = '#FF4500';
-              el.flameStatus.textContent = '💨 Дмухай!';
-              el.flameStatus.style.background = 'linear-gradient(135deg, #FF8C00 0%, #FF4500 100%)';
             }
 
-            // Перевірка на 8 секунд – запалення!
             if (state.blowDuration >= CONFIG.BLOW_TIME_IGNITE && !state.torchLit) {
-              state.torchLit = true;
               this.igniteTorch();
             }
           }
         } else {
-          // Подих перервався – скидаємо
           if (state.isBlowing) {
             state.isBlowing = false;
-            state.blowStartTime = null;
-            state.blowDuration = 0;
-            state.msg3sShown = false;
             el.progressFill.style.width = '0%';
             el.progressLabel.textContent = '⏳ 0 с';
-            // Повертаємо текст, якщо ще не запалили
             if (!state.torchLit) {
               el.wishText.textContent = '🔥 Дмухай на факел, щоб запалити!';
               el.wishText.style.color = '#FFD700';
               el.wishText.style.borderColor = '#FFD700';
-              el.flameStatus.textContent = '🔥 Факел не горить';
-              el.flameStatus.style.background = 'linear-gradient(135deg, #FF4500 0%, #FF6347 100%)';
             }
           }
         }
@@ -814,54 +692,15 @@
         flameGroup.visible = true;
         candle.visible = true;
 
-        // Оновлюємо інтерфейс
         el.flameStatus.textContent = '🔥 Факел запалено! 🎉';
         el.flameStatus.style.background = 'linear-gradient(135deg, #FFD700 0%, #FF8C00 100%)';
-        el.flameStatus.style.boxShadow = '0 0 40px rgba(255, 215, 0, 0.9)';
         el.wishText.textContent = '🎉 Буква № 5 – Р 🎉';
-        el.wishText.style.color = '#FFD700';
-        el.wishText.style.borderColor = '#FFD700';
-        el.wishText.style.background = 'rgba(0,0,0,0.9)';
-        el.wishText.style.boxShadow = '0 0 50px rgba(255, 215, 0, 0.8)';
         el.progressContainer.style.display = 'none';
         el.progressLabel.style.display = 'none';
         el.micBtn.style.background = 'linear-gradient(135deg, #FFD700 0%, #FF8C00 100%)';
         el.micBtn.innerHTML = '🔥';
 
-        // Звук запалення
         this.playIgniteSound();
-
-        // Через 6 секунд скидаємо для повторної гри (або можна залишити)
-        setTimeout(() => {
-          this.resetTorch();
-        }, 6000);
-      }
-
-      resetTorch() {
-        state.isFlameLit = false;
-        state.torchLit = false;
-        state.isBlowing = false;
-        state.blowStartTime = null;
-        state.blowDuration = 0;
-        state.msg3sShown = false;
-        flameGroup.visible = false;
-        candle.visible = false;
-        el.flameStatus.textContent = '🔥 Факел не горить';
-        el.flameStatus.style.background = 'linear-gradient(135deg, #FF4500 0%, #FF6347 100%)';
-        el.flameStatus.style.boxShadow = '0 0 20px rgba(255, 69, 0, 0.6)';
-        el.wishText.textContent = '🔥 Дмухай на факел, щоб запалити!';
-        el.wishText.style.color = '#FFD700';
-        el.wishText.style.borderColor = '#FFD700';
-        el.wishText.style.background = 'rgba(0, 0, 0, 0.8)';
-        el.wishText.style.boxShadow = '0 0 25px rgba(255, 215, 0, 0.4)';
-        el.micBtn.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
-        el.micBtn.innerHTML = '🎙️';
-        el.progressFill.style.width = '0%';
-        el.progressLabel.textContent = '⏳ 0 с';
-        if (state.isMicActive) {
-          el.progressContainer.style.display = 'block';
-          el.progressLabel.style.display = 'block';
-        }
       }
 
       playIgniteSound() {
@@ -871,36 +710,23 @@
           const gain = state.audioContext.createGain();
           osc.connect(gain);
           gain.connect(state.audioContext.destination);
-          osc.frequency.setValueAtTime(600, state.audioContext.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(1200, state.audioContext.currentTime + 0.3);
+          osc.frequency.setValueAtTime(400, state.audioContext.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(800, state.audioContext.currentTime + 0.4);
           gain.gain.setValueAtTime(0.3, state.audioContext.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, state.audioContext.currentTime + 0.5);
+          gain.gain.linearRampToValueAtTime(0.01, state.audioContext.currentTime + 0.4);
           osc.start();
-          osc.stop(state.audioContext.currentTime + 0.5);
-        } catch (e) { /* ignore */ }
+          osc.stop(state.audioContext.currentTime + 0.4);
+        } catch (e) {}
       }
 
-      // ---------- ВІДЛАДКА ----------
       updateDebugPanel() {
         if (!CONFIG.DEBUG_MODE) return;
-        const status = state.isFlameLit ? 'ГОРИТЬ' : 'НЕ ГОРИТЬ';
-        const blow = state.isBlowing ? `ТАК (${state.blowDuration.toFixed(1)}с)` : 'НІ';
         el.debugPanel.innerHTML = `
-          <div>Полум'я: ${status}</div>
-          <div>Подих: ${blow}</div>
-          <div>Повідомлення 3с: ${state.msg3sShown ? '✅' : '❌'}</div>
-          <div>Запалено: ${state.torchLit ? '✅' : '❌'}</div>
-          <div style="font-size:8px;color:#888;">D = debug, R = reset</div>
+          <div>Полум'я: ${state.isFlameLit ? 'ГОРИТЬ' : 'НІ'}</div>
+          <div>Тривалість подиху: ${state.blowDuration.toFixed(1)}с</div>
         `;
-        // Клавіша R для скидання (тест)
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'r' || e.key === 'R') {
-            this.resetTorch();
-          }
-        });
       }
 
-      // ---------- ДОПОМІЖНІ ----------
       render() {
         if (renderer && scene && camera) {
           renderer.render(scene, camera);
@@ -926,24 +752,12 @@
         el.loading.innerHTML = `
           <div style="color:#ff6b6b;font-size:28px;margin-bottom:20px;">😕</div>
           <div style="font-size:18px;margin-bottom:20px;">${msg}</div>
-          <button onclick="location.reload()" style="padding:14px 28px;background:linear-gradient(135deg,#FF4500,#FF6347);color:#fff;border:none;border-radius:25px;cursor:pointer;font-size:16px;">
-            Спробувати знову
-          </button>
         `;
-      }
-
-      cleanup() {
-        if (state.animationId) cancelAnimationFrame(state.animationId);
-        if (el.video.srcObject) el.video.srcObject.getTracks().forEach(t => t.stop());
-        if (handLandmarker) handLandmarker.close();
-        this.stopMicrophone();
       }
     }
 
-    // ---------- СТАРТ ----------
     window.addEventListener('DOMContentLoaded', () => {
-      const app = new TorchARApp();
-      window.addEventListener('beforeunload', () => app.cleanup());
+      new TorchARApp();
     });
   </script>
 </body>
