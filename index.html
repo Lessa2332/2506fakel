@@ -253,7 +253,8 @@
       BLOW_TIME_FIRST_MSG: 0.5,  
       BLOW_TIME_IGNITE: 1.5,     
       DEBUG_MODE: false,
-      FLAME_Y_OFFSET: 0.1        // майже на рівні долоні
+      // ЗМІНА: зсув полум'я вниз (було 0.1, стало -0.05)
+      FLAME_Y_OFFSET: -0.05
     };
 
     const state = {
@@ -440,11 +441,10 @@
         flameGroup.visible = false;
         candle.add(flameGroup);
 
-        // --- НОВА, ВИТЯГНУТА ФОРМА ПОЛУМ'Я ---
-        // Робимо вужчим і вищим: контрольні точки зміщені вгору, ширина менша
+        // Витягнута форма полум'я
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
-        shape.bezierCurveTo(0.25, 0.4, 0.20, 1.8, 0, 3.2);   // вужче і вище
+        shape.bezierCurveTo(0.25, 0.4, 0.20, 1.8, 0, 3.2);
         shape.bezierCurveTo(-0.20, 1.8, -0.25, 0.4, 0, 0);
 
         const geo = new THREE.ExtrudeGeometry(shape, {
@@ -458,7 +458,6 @@
         const colors = [0xFFFF00, 0xFF8800, 0xFF3300];
         const emissive = [0xFFAA00, 0xFF6600, 0xFF2200];
         const opacities = [0.95, 0.7, 0.5];
-        // Базові масштаби – великі, але Y сильно витягнутий
         const scales = [4.5, 6.0, 7.5];
 
         for (let i = 0; i < 3; i++) {
@@ -475,7 +474,6 @@
           });
           const mesh = new THREE.Mesh(geo.clone(), mat);
           const s = scales[i];
-          // КЛЮЧОВА ЗМІНА: сильно витягуємо по Y (коефіцієнт 2.8)
           mesh.scale.set(s, s * 2.8, s);
           flameGroup.add(mesh);
         }
@@ -620,7 +618,7 @@
 
       updatePosition() {
         if (!state.landmarks) return;
-        // Центр долоні (середнє по 5 точках)
+        // Центр долоні
         const points = [0, 5, 9, 13, 17];
         let cx = 0, cy = 0;
         for (const idx of points) {
@@ -638,7 +636,7 @@
           torchSprite.position.set(x, y - 0.5, 0);
           torchSprite.lookAt(camera.position);
         }
-        // Полум'я – прямо в центрі долоні
+        // Полум'я – з урахуванням зсуву вниз (FLAME_Y_OFFSET)
         if (candle) {
           candle.position.set(x, y - 0.3 + CONFIG.FLAME_Y_OFFSET, 0.05);
           candle.lookAt(camera.position);
@@ -656,7 +654,6 @@
         flameGroup.children.forEach((layer, i) => {
           if (i < 3) {
             const sc = i === 0 ? s1 : i === 1 ? s2 : s3;
-            // Зберігаємо витягнутість, змінюючи тільки загальний масштаб
             layer.scale.set(sc, sc * 2.8, sc);
             layer.position.y = offY + i * 0.02;
           }
