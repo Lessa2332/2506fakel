@@ -253,7 +253,7 @@
       BLOW_TIME_FIRST_MSG: 0.5,  
       BLOW_TIME_IGNITE: 1.5,     
       DEBUG_MODE: false,
-      FLAME_Y_OFFSET: 0.45       // трохи вище, щоб полум'я було над долонею
+      FLAME_Y_OFFSET: 0.1        // майже на рівні долоні
     };
 
     const state = {
@@ -288,7 +288,7 @@
     };
 
     let scene, camera, renderer;
-    let torchSprite, candle, flameGroup;
+    let torchSprite, candle, flameGroup, glowSprite;
     let handLandmarker;
 
     class TorchARApp {
@@ -400,47 +400,81 @@
         scene.add(candle);
 
         this.createNaturalFlame();
+        this.createGlowSprite();
 
-        const light = new THREE.PointLight(0xFFA500, 1.8, 4.0); // збільшено інтенсивність
-        light.position.set(0, 0, 0);
+        const light = new THREE.PointLight(0xFFA500, 2.5, 5.0);
+        light.position.set(0, 0.1, 0.05);
         candle.add(light);
+      }
+
+      createGlowSprite() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        grad.addColorStop(0, 'rgba(255, 200, 50, 1)');
+        grad.addColorStop(0.2, 'rgba(255, 150, 20, 0.8)');
+        grad.addColorStop(0.5, 'rgba(255, 80, 0, 0.4)');
+        grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 256);
+        const texture = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          opacity: 0.9
+        });
+        glowSprite = new THREE.Sprite(mat);
+        glowSprite.scale.set(3.0, 3.0, 1);
+        glowSprite.position.y = 0.1;
+        glowSprite.visible = false;
+        candle.add(glowSprite);
       }
 
       createNaturalFlame() {
         flameGroup = new THREE.Group();
-        flameGroup.position.y = 0; 
+        flameGroup.position.y = 0.1;
         flameGroup.visible = false;
         candle.add(flameGroup);
 
-        // Збільшуємо форму полум'я в 2 рази
+        // ВЕЛИКЕ полум'я – форма збільшена в 4 рази
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
-        shape.bezierCurveTo(0.10, 0.20, 0.08, 0.60, 0, 0.80);
-        shape.bezierCurveTo(-0.08, 0.60, -0.10, 0.20, 0, 0);
+        shape.bezierCurveTo(0.35, 0.5, 0.30, 1.6, 0, 2.4);
+        shape.bezierCurveTo(-0.30, 1.6, -0.35, 0.5, 0, 0);
 
-        const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false, curveSegments: 32 });
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: 0.06,
+          bevelEnabled: false,
+          curveSegments: 40
+        });
         geo.rotateX(Math.PI / 2);
-        geo.translate(0, 0.15, 0); // зміщено вгору
+        geo.translate(0, 0.2, 0);
 
-        // Кольори та матеріали – залишаємо, але масштаби збільшуємо
         const colors = [0xFFFF00, 0xFF8800, 0xFF3300];
         const emissive = [0xFFAA00, 0xFF6600, 0xFF2200];
         const opacities = [0.95, 0.7, 0.5];
-        // НОВІ МАСШТАБИ – полум'я стає великим, як долоня
-        const scales = [2.8, 3.6, 4.4];
+        // МАСШТАБИ – полум'я велике, як долоня
+        const scales = [5.0, 6.5, 8.0];
 
         for (let i = 0; i < 3; i++) {
           const mat = new THREE.MeshPhongMaterial({
             color: colors[i],
             emissive: emissive[i],
-            emissiveIntensity: 1.5,
+            emissiveIntensity: 1.8,
             transparent: true,
             opacity: opacities[i],
-            shininess: 40,
-            side: THREE.DoubleSide
+            shininess: 30,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
           });
-          const mesh = new THREE.Mesh(geo, mat);
-          mesh.scale.set(scales[i], 1 + i * 0.15, 1);
+          const mesh = new THREE.Mesh(geo.clone(), mat);
+          const s = scales[i];
+          mesh.scale.set(s, s * (1 + i * 0.12), s);
           flameGroup.add(mesh);
         }
       }
@@ -525,6 +559,7 @@
             torchSprite.visible = true;
             candle.visible = state.isFlameLit; 
             flameGroup.visible = state.isFlameLit;
+            if (glowSprite) glowSprite.visible = state.isFlameLit;
             el.wishText.style.display = 'block';
             el.flameStatus.style.display = 'block';
             el.handIndicator.style.display = 'none';
@@ -538,6 +573,7 @@
             torchSprite.visible = false;
             candle.visible = false;
             flameGroup.visible = false;
+            if (glowSprite) glowSprite.visible = false;
             el.wishText.style.display = 'none';
             el.flameStatus.style.display = 'none';
             el.progressContainer.style.display = 'none';
@@ -582,7 +618,7 @@
 
       updatePosition() {
         if (!state.landmarks) return;
-        // Використовуємо середню точку основи долоні (0,5,9,13,17) – це центр долоні
+        // Центр долоні (середнє по 5 точках)
         const points = [0, 5, 9, 13, 17];
         let cx = 0, cy = 0;
         for (const idx of points) {
@@ -600,9 +636,9 @@
           torchSprite.position.set(x, y - 0.5, 0);
           torchSprite.lookAt(camera.position);
         }
-        // Полум'я – над центром долоні зі зміщенням FLAME_Y_OFFSET
+        // Полум'я – прямо в центрі долоні (без великого зміщення)
         if (candle) {
-          candle.position.set(x, (y - 0.5) + CONFIG.FLAME_Y_OFFSET, 0.05);
+          candle.position.set(x, y - 0.3 + CONFIG.FLAME_Y_OFFSET, 0.05);
           candle.lookAt(camera.position);
         }
       }
@@ -610,19 +646,32 @@
       animateFlame() {
         if (!flameGroup || !state.isFlameLit) return;
         const t = state.time;
-        const s1 = 1 + Math.sin(t * 15) * 0.12;
-        const s2 = 1 + Math.sin(t * 11 + 1.5) * 0.1;
-        const s3 = 1 + Math.sin(t * 8 + 2.5) * 0.08;
-        const offY = Math.sin(t * 7) * 0.03;
-        const rotZ = Math.sin(t * 5) * 0.08;
+        const s1 = 1 + Math.sin(t * 15) * 0.15;
+        const s2 = 1 + Math.sin(t * 11 + 1.5) * 0.12;
+        const s3 = 1 + Math.sin(t * 8 + 2.5) * 0.10;
+        const offY = Math.sin(t * 7) * 0.04;
+        const rotZ = Math.sin(t * 5) * 0.06;
         flameGroup.children.forEach((layer, i) => {
           if (i < 3) {
             const sc = i === 0 ? s1 : i === 1 ? s2 : s3;
             layer.scale.set(sc, sc * 0.9, sc);
-            layer.position.y = offY;
+            layer.position.y = offY + i * 0.02;
           }
         });
         flameGroup.rotation.z = rotZ;
+        // Пульсація світла
+        if (candle.children.length > 0) {
+          const light = candle.children.find(c => c.isPointLight);
+          if (light) {
+            light.intensity = 1.8 + Math.sin(t * 12) * 0.6 + Math.sin(t * 7 + 1) * 0.3;
+          }
+        }
+        // Пульсація світіння
+        if (glowSprite) {
+          const gs = 2.8 + Math.sin(t * 8) * 0.4;
+          glowSprite.scale.set(gs, gs, 1);
+          glowSprite.material.opacity = 0.7 + Math.sin(t * 9) * 0.2;
+        }
       }
 
       checkBlowForIgnite() {
@@ -692,6 +741,7 @@
         state.torchLit = true;
         flameGroup.visible = true;
         candle.visible = true;
+        if (glowSprite) glowSprite.visible = true;
 
         el.flameStatus.textContent = '🔥 Факел запалено! 🎉';
         el.flameStatus.style.background = 'linear-gradient(135deg, #FFD700 0%, #FF8C00 100%)';
